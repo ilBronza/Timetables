@@ -1,0 +1,50 @@
+{
+    "name": "ilbronza/timetables",
+    "description": "Recurring schedules and availability queries for Laravel models",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Davide Bronzini",
+            "email": "davide_bronzini@hotmail.com",
+            "homepage": "https://sistema.srl"
+        }
+    ],
+    "homepage": "https://github.com/ilbronza/timetables",
+    "keywords": [
+        "Laravel",
+        "timetables",
+        "schedules",
+        "availability"
+    ],
+    "require": {
+        "php": ">=8.2",
+        "php-64bit": ">=8.2",
+        "illuminate/database": "^11.0",
+        "illuminate/support": "^11.0",
+        "illuminate/console": "^11.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^9.0",
+        "phpunit/phpunit": "^11.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "IlBronza\\Timetables\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "IlBronza\\Timetables\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "IlBronza\\Timetables\\TimetablesServiceProvider"
+            ]
+        }
+    }
+}
