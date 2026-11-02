@@ -2,14 +2,14 @@
 
 `ilbronza/timetables` aggiunge orari ricorrenti a modelli Eloquent e consente di cercare nel database i proprietari attivi in un istante o in una finestra temporale. Supporta regole settimanali, periodi con date di validità, più fasce al giorno, turni oltre mezzanotte, eccezioni per data e fusi orari IANA.
 
-Il pacchetto è un nucleo Laravel senza interfaccia CRUD. Un orario descrive quando un soggetto è attivo; lezioni, prenotazioni, presenze e impegni restano responsabilità dei rispettivi modelli di dominio.
+Il pacchetto comprende un nucleo Laravel e un editor web opzionale per la suite CRUD/UIKit. Un orario descrive quando un soggetto è attivo; lezioni, prenotazioni, presenze e impegni restano responsabilità dei rispettivi modelli di dominio.
 
 ## Requisiti e stato
 
 - PHP 8.2 o successivo, a 64 bit.
-- Laravel 11, tramite i componenti Illuminate richiesti dal pacchetto.
-- SQLite è verificato con 121 test e 950 asserzioni nella suite del pacchetto. MySQL 8.0.17 o successivo è il database di produzione previsto, ma le prove di integrazione, concorrenza e prestazioni su MySQL sono ancora da eseguire.
-- L'esecuzione della suite con Testbench su PHP 8.5 mostra due deprecazioni provenienti dall'ambiente di test; non sono errori del pacchetto.
+- Laravel 11 o 12, tramite i componenti Illuminate richiesti dal pacchetto. La suite `.ibtest` usa Laravel 11; l’integrazione dell’editor con il modello aziendale di Ecostudio è verificata su Laravel 12.64.
+- SQLite è verificato dalla suite del nucleo e dai test HTTP dell’editor, inclusa la renderizzazione con i provider CRUD/UIKit reali. MySQL 8.0.17 o successivo è il database di produzione previsto, ma le prove di integrazione, concorrenza e prestazioni su MySQL sono ancora da eseguire.
+- Su PHP 8.5 restano due deprecazioni della configurazione di Testbench; i test dell’editor espongono anche una firma con parametro implicitamente nullable già presente nel provider CRUD. Nessuna deprecazione proviene da Timetables.
 
 ## Installazione locale durante lo sviluppo
 
@@ -60,6 +60,55 @@ class Company extends Model
 Il modello esistente `IlBronza\Clients\Models\Client` è un'altra possibile classe proprietaria. Per usarlo, aggiungi il trait nel modello applicativo che lo estende, senza modificare il pacchetto `Clients`. Anche un `IlBronza\Operators\Models\Operator` può adottare il trait dall'applicazione.
 
 L'identità polimorfica usa `getMorphClass()`: alias e morph map restano sotto il controllo dell'applicazione. Dopo aver scritto un orario, il relativo tipo deve rimanere stabile o va migrato nei dati.
+
+## Editor CRUD opzionale
+
+L’editor gestisce l’intero orario: elenco per proprietario, creazione, dettaglio, modifica, disabilitazione, eliminazione logica e ripristino. Include periodi di validità, più fasce settimanali per giorno ed eccezioni per data. Tutte le scritture passano da `TimetableWriter`; i figli non hanno endpoint di modifica indipendenti. Non sono necessarie nuove migrazioni.
+
+In un’applicazione che utilizza già la suite IlBronza CRUD/UIKit, registra esplicitamente il provider in `bootstrap/providers.php`:
+
+```php
+IlBronza\Timetables\TimetablesEditorServiceProvider::class,
+```
+
+Il provider principale resta sufficiente per usare solo il motore. Per abilitare un modello nell’editor, aggiungi il trait `HasTimetables` e registra un alias nell’elenco `editor.owners` del file `config/timetables.php` pubblicato:
+
+```php
+'editor' => [
+    'owners' => [
+        'companies' => App\Models\Company::class,
+        'operators' => App\Models\Operator::class,
+    ],
+    'prefix' => 'timetables-management',
+    'middleware' => ['web', 'auth'],
+    'layout' => 'uikittemplate::app',
+    'max_periods' => 24,
+    'max_exceptions' => 366,
+],
+```
+
+Il percorso iniziale è `/timetables-management/companies/{chiave}`. Gli alias dell’editor sono un elenco esplicito di modelli accessibili via HTTP e sono distinti dagli alias della morph map. Non si accettano classi o nomi di connessione dalla richiesta. Il resolver conserva la connessione, i global scope del proprietario e la sua esclusione dei record cancellati logicamente. Per connessioni tenant scelte a runtime, configura il middleware dell’applicazione prima di questi endpoint, come per gli altri controller del proprietario.
+
+L’accesso in lettura usa la policy `view` del proprietario; creazione e qualsiasi modifica degli orari usano `update`. In assenza di policy si usano i metodi CRUD `userCanShow()` e `userCanUpdate()`, se disponibili, oppure le corrispondenti ability di Gate. Senza autorizzazione esplicita l’accesso è negato. Una policy registrata ha precedenza sul fallback ai metodi CRUD.
+
+Per creare un collegamento o aggiungere l’elenco al form CRUD esistente:
+
+```php
+use IlBronza\Timetables\Editor\TimetableEditor;
+
+$url = TimetableEditor::url($company);
+
+// $form è un’istanza IlBronza\Form\Form già costruita dal controller.
+TimetableEditor::addFetcher($form, $company);
+```
+
+Il fetcher viene inserito nella posizione `outherBottom`, all’esterno del form del proprietario. La pagina elenco riconosce `ibFetcher=true` e restituisce solo il frammento. Puoi usare anche `?embedded=1` per richiedere esplicitamente il frammento. Le pagine complete adottano `editor.layout`; le viste si personalizzano con `php artisan vendor:publish --tag=timetables-views`. Traduzioni disponibili: italiano e inglese.
+
+La finalità è univoca per proprietario e non si rinomina durante la modifica. Un orario eliminato conserva la finalità: ripristinalo prima di modificarlo. Il modulo usa orari `HH:mm` e una casella **Termina il giorno dopo**; 22:00–02:00 con la casella selezionata rappresenta il turno notturno. Per terminare a mezzanotte usa 00:00 del giorno dopo. Senza fasce, un’eccezione chiude l’intera data; rimuoverla ripristina la regola settimanale.
+
+I salvataggi, le eliminazioni e i ripristini richiedono la revisione letta. Un conflitto restituisce HTTP 409; il modulo conserva le modifiche dell’utente e il vecchio token, disabilita il salvataggio e offre un collegamento per ricaricare. Gli errori di validazione riportano il modulo con i valori inseriti. Un controllo finale impedisce di salvare moduli troncati da `max_input_vars`: per orari molto grandi, aumenta tale limite PHP oltre al limite applicativo di periodi ed eccezioni. JavaScript serve per aggiungere e rimuovere righe, senza dipendenze aggiuntive oltre agli asset già caricati dalla suite.
+
+I test d’integrazione dell’editor richiedono la suite opzionale CRUD/UIKit con AccountManager, Menu e Permission. Nel workspace sono disponibili tramite `.ibtest`; in un’installazione di sviluppo con solo le dipendenze del nucleo vengono saltati.
 
 ## Scrivere e aggiornare un orario
 

@@ -30,4 +30,14 @@ return [
     ],
 
     'validation_connections' => [],
+
+    // Only used when TimetablesEditorServiceProvider is registered explicitly.
+    'editor' => [
+        'owners' => [], // URL alias => host Eloquent model using HasTimetables.
+        'prefix' => 'timetables-management',
+        'middleware' => ['web', 'auth'],
+        'layout' => 'uikittemplate::app',
+        'max_periods' => 24,
+        'max_exceptions' => 366, // Per period.
+    ],
 ];

@@ -2,7 +2,7 @@
 
 `ilbronza/timetables` gestisce gli orari ricorrenti di un modello Laravel e permette di cercare nel database i modelli attivi a un certo istante o durante un intervallo. La prima versione usa tabelle relazionali, regole settimanali, periodi di validità ed eccezioni per data. Il calcolo temporale è interno al pacchetto; Spatie resta un riferimento, senza dipendenza a runtime.
 
-Il nucleo Laravel è implementato: migrazioni, modelli, servizi, trait, ricerche e comando di verifica della configurazione. Il [README](../README.md) documenta le API effettive. Il prototipo SQL rimane un riferimento indipendente per la semantica; i test del pacchetto esercitano il codice PHP su SQLite. La verifica su MySQL e l’adattatore grafico sono passi successivi.
+Il nucleo Laravel e l’editor opzionale sono implementati: migrazioni, modelli, servizi, trait, ricerche, comando di verifica della configurazione e CRUD dell’aggregato. Il [README](../README.md) documenta le API e l’attivazione dell’editor. Il prototipo SQL rimane un riferimento indipendente per la semantica; i test del pacchetto esercitano il codice PHP su SQLite e l’editor con i provider della suite. La verifica su MySQL resta da eseguire.
 
 ## Collocazione e confini
 
@@ -305,7 +305,7 @@ La base dei quattro modelli estende Eloquent `Model`, usa UUID e risolve classi 
 
 Non si eredita `PackagedBaseModel` nel nucleo: la base attuale di CRUD introduce cancellazione logica, broadcast e comportamento dell'interfaccia anche sui record tecnici. I giorni e gli intervalli richiedono invece un ciclo di vita strettamente legato all'intestazione.
 
-Il provider principale registra configurazione, servizi, migrazioni e traduzioni. Un eventuale provider dell'interfaccia è opt-in. Il nucleo deve essere utilizzabile in un'applicazione Laravel priva di CRUD, `AccountManager`, `Menu` e `Permission`.
+Il provider principale registra configurazione, servizi e migrazioni. `TimetablesEditorServiceProvider` registra viste, traduzioni e route dell’interfaccia ed è opt-in. Il nucleo rimane utilizzabile in un'applicazione Laravel priva di CRUD, `AccountManager`, `Menu` e `Permission`.
 
 Il `composer.json` dichiara le dipendenze realmente importate: PHP almeno 8.2 a 64 bit e i componenti Illuminate necessari. La matrice verificata è Laravel 11 e PHP 8.5.8 con l’ambiente già disponibile; altre versioni saranno ammesse solo dopo i relativi test. Le dipendenze della UI appartengono all'adattatore opzionale e non entrano implicitamente nel motore.
 
@@ -333,9 +333,11 @@ Le personalizzazioni dei modelli devono estendere le classi del pacchetto e pres
 
 L'editor presenta un orario completo: finalità, fuso, periodi, griglia settimanale ed eccezioni. Tutti i salvataggi passano dal writer con revisione. Non espone quattro CRUD indipendenti su tabelle che possono diventare incoerenti fra loro.
 
-I campi sono dichiarati esplicitamente, senza introspezione MySQL `DESCRIBE`. L'integrazione visiva con UIKit/CRUD va realizzata come adattatore e verificata con i suoi provider; non è un requisito del resolver o delle query.
+I campi sono dichiarati esplicitamente, senza introspezione MySQL `DESCRIBE`. L'integrazione visiva con UIKit/CRUD è un adattatore verificato con i suoi provider, separato dal resolver e dalle query. `TimetableForm` converte i campi civili nei minuti del writer; `TimetableEditor` fornisce URL e integrazione fetcher nella posizione esterna al form del proprietario.
 
 Gli endpoint risolvono il proprietario da un elenco di tipi consentiti e applicano policy e vincoli di tenant del proprietario. Il client non può passare una classe PHP arbitraria, un nome di tabella o aggirare l'autorizzazione tramite l'UUID di un giorno figlio. Tutte le operazioni sui figli verificano l'appartenenza all'aggregato autorizzato.
+
+L’elenco `timetables.editor.owners` associa alias URL alle classi dell’applicazione e non modifica la morph map. La policy `view` autorizza elenco e dettaglio; `update` autorizza qualsiasi mutazione degli orari. Senza policy, l’adattatore riconosce i metodi CRUD `userCanShow` e `userCanUpdate`, poi Gate. Ogni ricerca di un UUID è vincolata al tipo e alla chiave del proprietario sulla sua connessione. Il dettaglio e il form verificano nuovamente la revisione dopo il caricamento dei figli. Un salvataggio concorrente produce HTTP 409 con input conservato e salvataggio disabilitato fino alla ricarica.
 
 ## Cosa prendere da Spatie
 
@@ -386,4 +388,4 @@ Nel workspace i test PHP si eseguono con `python3 .ibtest/bin/ibtest.py Timetabl
 4. **Integrazione reale.** Primo proprietario azienda oppure operatore, dichiarazione delle dipendenze e documentazione degli esempi. Criterio: una ricerca utilizzabile nell'applicazione, con misure sul database di produzione.
 5. **Editor opzionale.** Modifica dell'aggregato, policy e presentazione nella suite. Criterio: salvataggi concorrenti gestiti e nessuna modifica diretta dei figli fuori dal writer.
 
-I punti 1–3 sono implementati e verificati su SQLite, inclusi classi personalizzate, connessioni separate e prefissi. Il README fornisce l’integrazione per il modello dell’applicazione. Restano da eseguire le prove MySQL e le misure su volumi reali del punto 4. L’editor opzionale può essere aggiunto senza cambiare lo schema o le regole temporali.
+I punti 1–3 e 5 sono implementati e verificati su SQLite, inclusi classi personalizzate, connessioni separate, prefissi e controller dell’editor. Il README fornisce l’integrazione per il modello dell’applicazione e per il suo form CRUD. Restano da eseguire le prove MySQL e le misure su volumi reali del punto 4.
